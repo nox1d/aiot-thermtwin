@@ -1,0 +1,58 @@
+services:
+  # MQTT Broker: The post office for your data
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./backend/mosquitto/config:/mosquitto/config
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
+  # InfluxDB: The time-series database
+  influxdb3-core:
+    image: influxdb:3-core
+    container_name: influxdb3-core
+    # The default command initializes the open-source V3 Core
+    command: influxdb3
+    ports:
+      - "8181:8181"
+    volumes:
+      - influxdb3-data:/.data
+      - influxdb3-plugins:/plugins
+    restart: unless-stopped
+
+  # Telegraf: The glue between MQTT and InfluxDB
+  telegraf:
+    image: telegraf:latest
+    container_name: telegraf
+    depends_on:
+      - mosquitto
+      - influxdb3-core
+    environment:
+      - INFLUX_TOKEN=${INFLUX_TOKEN}
+    volumes:
+      - ./backend/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    restart: unless-stopped
+
+  # Streamlit: The UI
+  streamlit:
+    build:
+      context: ./frontend
+    container_name: streamlit
+    environment:
+      - INFLUX_TOKEN=${INFLUX_TOKEN}
+    ports:
+      - "8501:8501"
+    depends_on:
+      - influxdb3-core
+      - mosquitto
+    volumes:
+      - ./frontend:/app
+    restart: unless-stopped
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:
+  influxdb3-data:
+  influxdb3-plugins:
