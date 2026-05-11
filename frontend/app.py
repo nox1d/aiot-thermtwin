@@ -1,5 +1,7 @@
 import streamlit as st
 import os
+import pandas as pd
+import numpy as np
 from influxdb_client import InfluxDBClient
 
 st.set_page_config(page_title="IoT Data Dashboard", layout="wide")
@@ -14,4 +16,40 @@ if not INFLUX_TOKEN:
     st.error("Error: INFLUX_TOKEN is missing! Check your .env file.")
 
 st.write("ts :rainbow[finally] working gang")
-st.info("Ensure you have generated an Admin token from your InfluxDB 3 instance and pasted it into Telegraf and Streamlit configs.")
+st.info("This is a prototype. The data shown is randomly generated.")
+
+
+num_periods = 24
+time_data = pd.date_range(start="2023-10-02 00:00:00", periods=num_periods, freq="h")
+time_data_past = pd.date_range(start="2023-10-01 00:00:00", periods=num_periods, freq="h")
+
+# 2. Generate mock temperature data (between 15.0°C and 100.0°C)
+temperature_data = np.round(np.random.uniform(low=15.0, high=100.0, size=num_periods), 1)
+temperature_data_past = np.round(np.random.uniform(low=15.0, high=100.0, size=num_periods), 1)
+
+# 3. Create the Pandas DataFrames
+df = pd.DataFrame({
+    'time': time_data,
+    'temperature': temperature_data
+})
+df2 = pd.DataFrame({
+    'past_time': time_data_past,
+    'past_temperature': temperature_data_past
+})
+
+# --- FIX: Combine data for the chart ---
+# We extract the 'Hour' as an index so that both days align nicely over a 24-hour X-axis
+chart_data = pd.DataFrame({
+    'Yesterday': temperature_data_past,
+    'Today': temperature_data
+}, index=df['time'].dt.strftime('%H:%M')) 
+
+# --- Streamlit UI ---
+tab1, tab2 = st.tabs(["Chart", "Dataframe"])
+
+# Plot the combined DataFrame (Plots 2 lines over 24 periods)
+tab1.line_chart(chart_data, height=250, color=["#fd0", "#f0f"])
+
+# Combine both dataframes side-by-side so df2 isn't left unused
+combined_df = pd.concat([df, df2], axis=1)
+tab2.dataframe(combined_df, height=250, use_container_width=True)
